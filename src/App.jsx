@@ -8,6 +8,10 @@ import LoginPage from './pages/login/logInPage'
 import Dashboard from './pages/dashboard'
 import AdminPage from './pages/admin/adminPage'
 import ServiceDeliveryPage from './pages/service-delivery/serviceDeliveryPage'
+import Suppliers from './pages/supplier/suppliers'
+import PromotionsAndSub from './pages/promotions/promotionsAndSub'
+import Support from './pages/support/support'
+import Reports from './pages/reports/reports'
 
 export default function App() {
   return (
@@ -21,6 +25,10 @@ export default function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/admins" element={<AdminPage />} />
           <Route path="/service-delivery" element={<ServiceDeliveryPage />} />
+          <Route path="/suppliers" element={<Suppliers />} />
+          <Route path="/promotions" element={<PromotionsAndSub />} />
+          <Route path="/support" element={<Support />} />
+          <Route path="/reports" element={<Reports />} />
         </Route>
 
         {/* fallback */}
