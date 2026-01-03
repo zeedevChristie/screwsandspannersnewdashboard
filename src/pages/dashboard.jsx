@@ -6,14 +6,38 @@ export default function Dashboard() {
   const [isOpen, setIsOpen] = useState(true);
   const [counts, setCounts] = useState({});
 
-  // Fetch statistics from Screws & Spanners API
+  // Fetch statistics from Screws and Spanners API endpoints
 useEffect(() => {
-  fetch("https://app.api.screwsandspanners.com/api/v1/auth/statistics")
-    .then((response) => response.json())
-    .then((data) => {
+  const fetchData = async () => {
+    const token = localStorage.getItem("authToken");
+    console.log(token);
+
+    if (!token) {
+      console.error("No auth token found");
+      return;
+    }
+
+    try {
+      const response = await fetch("https://app.api.screwsandspanners.com/api/v1/auth/statistics", {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+      console.log(response);
+      const data = await response.json();
       setCounts(data);
-    })
-    .catch((error) => console.error("Error fetching data:", error));
+    } catch (error) {
+      console.error("Error fetching data:", error);
+    }
+  };
+
+  fetchData();
 }, []);
 
   const widgets = [
@@ -25,14 +49,14 @@ useEffect(() => {
     },
     {
       title: "Active SPs",
-      value: counts.activeServiceProviders,
-      subValue: "Total SP: ",
+      value: counts.serviceProviders?.active,
+      subValue: `Total SP:${counts.serviceProviders?.total}`,
       bg: "blue",
     },
     {
       title: "Active Customers",
-      value: counts.activeCustomers,
-      subValue: "Total Customers: ",
+      value: counts.customers?.active,
+      subValue: `Total Customers: ${counts.customers?.total}`,
       bg: "purple",
     },
     {

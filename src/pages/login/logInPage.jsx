@@ -1,11 +1,47 @@
-import React from "react";
+import React, { useState } from "react";
 import SnSlogo from '../../assets/icon/SnSlogo.png';
 import landingBackground from "../../assets/background/landingBackground.jpg";
+import { useNavigate } from "react-router-dom";
 
 const LoginPage = () => {
+  const [phoneNumber, setPhoneNumber] = useState("");
+  const [password, setPassword] = useState("");
+  const navigate = useNavigate();
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    try {
+      // Build form-data for API
+      const formData = new FormData();
+      formData.append("phone_code", "+234");     // Nigeria country code
+      formData.append("phone_number", phoneNumber);
+      formData.append("password", password);
+      formData.append("device_type", "android"); // or "apple"
+      formData.append("device_id", "1");         // can be any identifier
+
+      const response = await fetch("https://app.screwsandspanners.com/api/auth/login", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await response.json();
+
+      if (data.token) {
+        // Save token for authenticated requests
+        localStorage.setItem("authToken", data.token);
+        navigate("/dashboard");
+      } else {
+        alert("Oops! Login failed. Please check your credentials.");
+      }
+    } catch (error) {
+      console.error("Login failed:", error);
+      alert("Something went wrong, try again later.");
+    }
+  };
+
   return (
     <div
-      className="min-h-screen  flex items-center justify-center bg-cover bg-center px-4"
+      className="min-h-screen flex items-center justify-center bg-cover bg-center px-4"
       style={{ backgroundImage: `url(${landingBackground})` }}
     >
       <div className="bg- dark:bg- p- sm:p- rounded shadow-md w-full max-w-sm sm:max-w-md text-black dark:text-white">
@@ -28,19 +64,21 @@ const LoginPage = () => {
           </p>
         </div>
 
-        {/* Form */}
-        <form>
-          {/* Email */}
+        {/* Login Form */}
+        <form onSubmit={handleLogin}>
+          {/* Phone Number */}
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Email</label>
+            <label className="block text-sm font-medium mb-1">Phone Number</label>
             <input
-              type="email"
-              placeholder="Enter email address"
+              type="text"
+              placeholder="Enter phone number"
               className="w-full px-4 py-2 border rounded bg-gray-700 text-white"
+              value={phoneNumber}
+              onChange={(e) => setPhoneNumber(e.target.value)}
             />
-          </div>
+          </div> 
 
-          {/* Password + Forgot */}
+          {/* Password */}
           <div className="mb-4">
             <div className="flex justify-between items-center mb-1">
               <label className="text-sm font-medium">Password</label>
@@ -55,6 +93,8 @@ const LoginPage = () => {
               type="password"
               placeholder="Enter Password"
               className="w-full px-4 py-2 border rounded bg-gray-700 dark:text-white"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
             />
           </div>
 

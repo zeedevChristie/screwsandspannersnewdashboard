@@ -13,6 +13,11 @@ import PromotionsAndSub from './pages/promotions/promotionsAndSub'
 import Support from './pages/support/support'
 import Reports from './pages/reports/reports'
 
+
+const Authenticated = ({ children }) => {
+  const token = localStorage.getItem("authToken");
+};
+
 export default function App() {
   return (
     <>
@@ -20,15 +25,15 @@ export default function App() {
         {/* Public route: Login (no layout) */}
         <Route path="/" element={<LoginPage />} />
 
-        {/* Routes that show the layout chrome */}
+        {/* Routes that show the layout */}
         <Route element={<Layout />}>
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/admins" element={<AdminPage />} />
-          <Route path="/service-delivery" element={<ServiceDeliveryPage />} />
-          <Route path="/suppliers" element={<Suppliers />} />
-          <Route path="/promotions" element={<PromotionsAndSub />} />
-          <Route path="/support" element={<Support />} />
-          <Route path="/reports" element={<Reports />} />
+          <Route path="/dashboard" element={<Authenticated><Dashboard /></Authenticated>} />
+          <Route path="/admins" element={<Authenticated><AdminPage /></Authenticated>} />
+          <Route path="/service-delivery" element={<Authenticated><ServiceDeliveryPage /></Authenticated>} />
+          <Route path="/suppliers" element={<Authenticated><Suppliers /></Authenticated>} />
+          <Route path="/promotions" element={<Authenticated><PromotionsAndSub /></Authenticated>} />
+          <Route path="/support" element={<Authenticated><Support /></Authenticated>} />
+          <Route path="/reports" element={<Authenticated><Reports /></Authenticated>} />
         </Route>
 
         {/* fallback */}

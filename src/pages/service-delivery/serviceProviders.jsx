@@ -15,14 +15,14 @@ export default function ServiceProviders() {
   const [selectedRow, setSelectedRow] = useState(null);
   const [isEditing, setIsEditing] = useState(false);
 
-          // FILTER STATES
+  // FILTER STATES
 
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("");
+  //   const [selectedCategory, setSelectedCategory] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
 
-                // FILTER LOGIC
+  // FILTER LOGIC
 
   useEffect(() => {
     let temp = [...rows];
@@ -45,9 +45,7 @@ export default function ServiceProviders() {
     }
 
     if (startDate) {
-      temp = temp.filter(
-        (r) => new Date(r.created_at) >= new Date(startDate)
-      );
+      temp = temp.filter((r) => new Date(r.created_at) >= new Date(startDate));
     }
 
     if (endDate) {
@@ -57,7 +55,7 @@ export default function ServiceProviders() {
     setFilteredRows(temp);
   }, [searchTerm, startDate, endDate, rows]);
 
-             //EXPORT FUNCTIONS
+  //EXPORT FUNCTIONS
 
   function exportCSVsheet(dataToExport) {
     const header =
@@ -105,7 +103,7 @@ export default function ServiceProviders() {
     link.click();
   }
 
-          //DATAGRID COLUMNS
+  //DATAGRID COLUMNS
 
   const columns = [
     {
@@ -128,15 +126,56 @@ export default function ServiceProviders() {
           />
         ) : null,
     },
-    { field: "firstname", headerName: "First name", width: 150, headerAlign: "center" },
-    { field: "lastname", headerName: "Last name", width: 150, headerAlign: "center" },
-    { field: "fullName", headerName: "Full name", width: 200, headerAlign: "center" },
+    {
+      field: "firstname",
+      headerName: "First name",
+      width: 150,
+      headerAlign: "center",
+    },
+    {
+      field: "lastname",
+      headerName: "Last name",
+      width: 150,
+      headerAlign: "center",
+    },
+    {
+      field: "fullName",
+      headerName: "Full name",
+      width: 200,
+      headerAlign: "center",
+    },
     { field: "email", headerName: "Email", width: 200, headerAlign: "center" },
-    { field: "business_name", headerName: "Business Name", width: 200, headerAlign: "center" },
-    { field: "categories_titles", headerName: "Categories", width: 220, headerAlign: "center" },
+    {
+      field: "created_at",
+      headerName: "Signup Date",
+      width: 200,
+      headerAlign: "center",
+    },
+    {
+      field: "business_name",
+      headerName: "Business Name",
+      width: 200,
+      headerAlign: "center",
+    },
+    {
+      field: "categories_titles",
+      headerName: "Categories",
+      width: 220,
+      headerAlign: "center",
+    },
     { field: "phone", headerName: "Phone", width: 150, headerAlign: "center" },
-    { field: "address", headerName: "Address", width: 240, headerAlign: "center" },
-    { field: "job_taken", headerName: "Job Taken", width: 100, headerAlign: "center" },
+    {
+      field: "address",
+      headerName: "Address",
+      width: 240,
+      headerAlign: "center",
+    },
+    {
+      field: "job_taken",
+      headerName: "Job Taken",
+      width: 100,
+      headerAlign: "center",
+    },
     {
       field: "completed_jobs",
       headerName: "Completed Jobs",
@@ -160,11 +199,16 @@ export default function ServiceProviders() {
           );
 
           try {
+            const token = localStorage.getItem("authToken");
+
             const res = await fetch(
               `https://app.api.screwsandspanners.com/api/v1/auth/verify-user/${rowId}`,
               {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                  Authorization: `Bearer ${token}`, // ✅ attach token
+                  "Content-Type": "application/json",
+                },
                 body: JSON.stringify({ verification: newStatus }),
               }
             );
@@ -211,11 +255,16 @@ export default function ServiceProviders() {
           updateRow({ badgeEnabled: checked });
 
           try {
+            const token = localStorage.getItem("authToken");
+
             await fetch(
               `https://app.api.screwsandspanners.com/api/v1/auth/update-badge/${rowId}`,
               {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                  Authorization: `Bearer ${token}`, // ✅ attach token
+                  "Content-Type": "application/json",
+                },
                 body: JSON.stringify({
                   badgeEnabled: checked,
                   badgeStart,
@@ -233,11 +282,16 @@ export default function ServiceProviders() {
           updateRow({ [field]: value });
 
           try {
+            const token = localStorage.getItem("authToken");
+
             await fetch(
               `https://app.api.screwsandspanners.com/api/v1/auth/update-badge/${rowId}`,
               {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: {
+                  Authorization: `Bearer ${token}`, // ✅ attach token
+                  "Content-Type": "application/json",
+                },
                 body: JSON.stringify({
                   badgeEnabled,
                   badgeStart: field === "badgeStart" ? value : badgeStart,
@@ -252,24 +306,25 @@ export default function ServiceProviders() {
         };
 
         return (
-          <div style={{ display: "flex", gap: 8 }}>
-            <Switch color="secondary" checked={badgeEnabled} onChange={handleToggle} />
-            <div style={{ display: "flex", gap: 4 }}>
+          <div>
+            <label>
               <input
-                type="date"
-                value={badgeStart}
-                disabled={!badgeEnabled}
-                onChange={(e) =>
-                  handleDateChange("badgeStart", e.target.value)
-                }
+                type="checkbox"
+                checked={badgeEnabled}
+                onChange={handleToggle}
               />
-              <input
-                type="date"
-                value={badgeEnd}
-                disabled={!badgeEnabled}
-                onChange={(e) => handleDateChange("badgeEnd", e.target.value)}
-              />
-            </div>
+              Enable Badge
+            </label>
+            <input
+              type="date"
+              value={badgeStart}
+              onChange={(e) => handleDateChange("badgeStart", e.target.value)}
+            />
+            <input
+              type="date"
+              value={badgeEnd}
+              onChange={(e) => handleDateChange("badgeEnd", e.target.value)}
+            />
           </div>
         );
       },
@@ -307,7 +362,7 @@ export default function ServiceProviders() {
     },
   ];
 
-               // FETCH DATA
+  // FETCH DATA
 
   useEffect(() => {
     setLoading(true);
@@ -315,21 +370,20 @@ export default function ServiceProviders() {
     fetch("https://app.api.screwsandspanners.com/api/v1/auth/sp-stats")
       .then((response) => response.json())
       .then((data) => {
-        const flattenedRows =
-          (data.data.serviceProviders || []).map((row) => ({
-            ...row,
-            business_name: row.business?.business_name || "",
-            categories_titles: Array.isArray(row.categories)
-              ? row.categories.map((c) => c.title).join(", ")
-              : "",
-            fullName: `${row.firstname || ""} ${row.lastname || ""}`,
-            address: row.business?.business_address || "",
-            job_taken: row.business?.job_taken || 0,
-            completed_jobs: row.business?.job_completed || 0,
-            badgeEnabled: Boolean(row.badgeEnabled ?? false),
-            badgeStart: row.badgeStart ?? "",
-            badgeEnd: row.badgeEnd ?? "",
-          }));
+        const flattenedRows = (data.data.serviceProviders || []).map((row) => ({
+          ...row,
+          business_name: row.business?.business_name || "",
+          categories_titles: Array.isArray(row.categories)
+            ? row.categories.map((c) => c.title).join(", ")
+            : "",
+          fullName: `${row.firstname || ""} ${row.lastname || ""}`,
+          address: row.business?.business_address || "",
+          job_taken: row.business?.job_taken || 0,
+          completed_jobs: row.business?.job_completed || 0,
+          badgeEnabled: Boolean(row.badgeEnabled ?? false),
+          badgeStart: row.badgeStart ?? "",
+          badgeEnd: row.badgeEnd ?? "",
+        }));
 
         setRows(flattenedRows);
         setLoading(false);
@@ -340,14 +394,10 @@ export default function ServiceProviders() {
       });
   }, []);
 
-
-
   return (
     <>
-
-    {/* filter */}
+      {/* filter */}
       <div className=" mb-4 flex  gap-3 items-center">
-
         <input
           type="text"
           className="border p-2 rounded w-52"
@@ -372,7 +422,9 @@ export default function ServiceProviders() {
 
         {/* EXPORT BUTTONS */}
         <button
-          onClick={() => exportCSVsheet(filteredRows.length ? filteredRows : rows)}
+          onClick={() =>
+            exportCSVsheet(filteredRows.length ? filteredRows : rows)
+          }
           className="px-4 py-2 bg-indigo-600 text-white rounded"
         >
           Export Filtered
@@ -406,9 +458,7 @@ export default function ServiceProviders() {
         onClose={() => setOpenModal(false)}
         row={selectedRow}
         isEditing={isEditing}
-        onChange={(patch) =>
-          setSelectedRow((prev) => ({ ...prev, ...patch }))
-        }
+        onChange={(patch) => setSelectedRow((prev) => ({ ...prev, ...patch }))}
         onSave={async () => {
           if (!selectedRow) return;
 
