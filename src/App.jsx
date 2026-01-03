@@ -16,6 +16,13 @@ import Reports from './pages/reports/reports'
 
 const Authenticated = ({ children }) => {
   const token = localStorage.getItem("authToken");
+
+  if (!token) {
+    return <Navigate to="/" replace />;
+  }
+  
+  // Otherwise, render the children
+  return children;
 };
 
 export default function App() {

@@ -23,7 +23,7 @@ const LoginPage = () => {
         method: "POST",
         body: formData,
       });
-
+   
       const data = await response.json();
 
       if (data.token) {
