@@ -364,35 +364,50 @@ export default function ServiceProviders() {
 
   // FETCH DATA
 
-  useEffect(() => {
-    setLoading(true);
+ useEffect(() => {
+  setLoading(true);
 
-    fetch("https://app.api.screwsandspanners.com/api/v1/auth/sp-stats")
-      .then((response) => response.json())
-      .then((data) => {
-        const flattenedRows = (data.data.serviceProviders || []).map((row) => ({
-          ...row,
-          business_name: row.business?.business_name || "",
-          categories_titles: Array.isArray(row.categories)
-            ? row.categories.map((c) => c.title).join(", ")
-            : "",
-          fullName: `${row.firstname || ""} ${row.lastname || ""}`,
-          address: row.business?.business_address || "",
-          job_taken: row.business?.job_taken || 0,
-          completed_jobs: row.business?.job_completed || 0,
-          badgeEnabled: Boolean(row.badgeEnabled ?? false),
-          badgeStart: row.badgeStart ?? "",
-          badgeEnd: row.badgeEnd ?? "",
-        }));
+  // Retrieve token from localStorage
+  const token = localStorage.getItem("authToken"); // adjust key name if different
 
-        setRows(flattenedRows);
-        setLoading(false);
-      })
-      .catch(() => {
-        toast.error("Failed to load service providers");
-        setLoading(false);
-      });
-  }, []);
+  fetch("https://app.api.screwsandspanners.com/api/v1/auth/sp-stats", {
+    method: "GET",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: token ? `Bearer ${token}` : "", // include token if available
+    },
+  })
+    .then((response) => {
+      if (!response.ok) {
+        throw new Error("Network response was not ok");
+      }
+      return response.json();
+    })
+    .then((data) => {
+      const flattenedRows = (data.data.serviceProviders || []).map((row) => ({
+        ...row,
+        business_name: row.business?.business_name || "",
+        categories_titles: Array.isArray(row.categories)
+          ? row.categories.map((c) => c.title).join(", ")
+          : "",
+        fullName: `${row.firstname || ""} ${row.lastname || ""}`,
+        address: row.business?.business_address || "",
+        job_taken: row.business?.job_taken || 0,
+        completed_jobs: row.business?.job_completed || 0,
+        badgeEnabled: Boolean(row.badgeEnabled ?? false),
+        badgeStart: row.badgeStart ?? "",
+        badgeEnd: row.badgeEnd ?? "",
+      }));
+
+      setRows(flattenedRows);
+      setLoading(false);
+    })
+    .catch(() => {
+      toast.error("Failed to load service providers");
+      setLoading(false);
+    });
+}, []);
+
 
   return (
     <>
