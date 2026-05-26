@@ -10,6 +10,13 @@ import {
 } from "./customers";
 import ViewCustomerModal from "./viewCustomerModal";
 
+/* ------------------ helpers ------------------ */
+function formatDate(val) {
+  if (!val) return "N/A";
+  const d = new Date(val);
+  return isNaN(d.getTime()) ? "N/A" : d.toLocaleDateString();
+}
+
 export default function Customer() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,80 +27,99 @@ export default function Customer() {
   const [packageFilter, setPackageFilter] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
+
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
   const [confirm, setConfirm] = useState({ open: false, id: null });
 
-  // FETCH CUSTOMERS
-async function fetchCustomers() {
-  try {
-    setLoading(true);
+  /* ------------------ FETCH CUSTOMERS ------------------ */
+  async function fetchCustomers() {
+    try {
+      setLoading(true);
+      const token = localStorage.getItem("authToken");
 
-    const token = localStorage.getItem("authToken"); 
+      const res = await fetch(
+        "https://app.api.screwsandspanners.com/api/v1/auth/customers",
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      const json = await res.json();
+      console.log("Response data:", json);
+      console.log("Response:", res);
 
-    const res = await fetch("https://app.api.screwsandspanners.com/api/v1/auth/customers", {
-      headers: {
-        "Authorization": `Bearer ${token}`,
-        "Content-Type": "application/json",
-      },
-    });
+      if (!res.ok) throw new Error("Failed to fetch customers");
+      const customers = json?.data?.customers || [];
 
-    if (!res.ok) throw new Error("Failed to fetch");
-    const json = await res.json();
-    const apiData = json?.data?.customers || [];
+      const mapped = customers.map((c) => ({
+        id: c.id,
 
-    const arr = apiData.map((c) => ({
-      id: c.id,
-      name: `${c.firstname || ""} ${c.lastname || ""}`,
-      email: c.email,
-      phone: c.phone,
-      subscription: c.subscription?.isActive ? "Active" : "Inactive",
-      packageType: c.subscription?.plan?.description || "N/A",
-      amountPaid: c.subscription?.plan?.amount || 0,
-      validityFrom: c.subscription?.transaction?.createdAt || "N/A",
-      validityTo: c.subscription?.expiryDate || "N/A",
-      status: c.subscription?.isActive ? "Active" : "Inactive",
-      dateSubscribed: c.subscription?.transaction?.createdAt || c.created_at,
-      promoCode: c.subscription?.promoCode || "-",
-    }));
+        name: `${c.firstname || ""} ${c.lastname || ""}`.trim() || "N/A",
+        email: c.email || "N/A",
+        phone: c.phone || "N/A",
 
-    setRows(arr);
-    setError("");
-  } catch (err) {
-    console.error(err);
-    setError("Failed to load customers");
-  } finally {
-    setLoading(false);
+        jobOrders: c.completed_jobs_count ?? "N/A",
+
+        subscriptionType: c.subscription?.plan?.description || "N/A",
+
+        promoType: "N/A", // not available yet
+        promoCode: "N/A", // not available yet
+
+        baseAmount:
+          c.subscription?.plan?.amount && c.subscription.plan.amount > 0
+            ? c.subscription.plan.amount
+            : "N/A",
+
+        amountPaid:
+          c.subscription?.transaction?.amount &&
+          c.subscription.transaction.amount > 0
+            ? c.subscription.transaction.amount
+            : "N/A",
+
+        dateSubscribed:
+          c.subscription?.transaction?.createdAt || c.created_at || null,
+
+        validityFrom:
+          c.subscription?.transaction?.createdAt || null,
+
+        validityTo:
+          c.subscription?.expiryDate || null,
+
+        status: c.subscription?.isActive ? "Active" : "Inactive",
+      }));
+
+      setRows(mapped);
+      setError("");
+    } catch (err) {
+      console.error(err);
+      setError("Failed to load customers");
+    } finally {
+      setLoading(false);
+    }
   }
-}
 
-useEffect(() => {
-  fetchCustomers();
-}, []);
+  useEffect(() => {
+    fetchCustomers();
+  }, []);
 
-
-  // APPLY FILTERS 
+  /* ------------------ FILTERS ------------------ */
   const filtered = useMemo(() => {
-    let output = [];
+    const output = [];
 
     for (let i = 0; i < rows.length; i++) {
-      let r = rows[i];
+      const r = rows[i];
 
-      // manual search
       if (query && !searchRows([r], query).length) continue;
-
-      // status filter
-      if (statusFilter && filterByStatus([r], statusFilter).length === 0)
+      if (statusFilter && !filterByStatus([r], statusFilter).length) continue;
+      if (packageFilter && !filterByPackage([r], packageFilter).length)
         continue;
-
-      // package
-      if (packageFilter && filterByPackage([r], packageFilter).length === 0)
-        continue;
-
-      // date range
       if (
         (dateFrom || dateTo) &&
-        filterByDateRange([r], dateFrom, dateTo).length === 0
+        !filterByDateRange([r], dateFrom, dateTo).length
       )
         continue;
 
@@ -103,26 +129,22 @@ useEffect(() => {
     return output;
   }, [rows, query, statusFilter, packageFilter, dateFrom, dateTo]);
 
-  // TOGGLE ACTIVE 
+  /* ------------------ ACTIONS ------------------ */
   function toggleActive(id) {
     const updated = [];
 
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
-      if (r.id === id) {
-        updated.push({
-          ...r,
-          status: r.status === "Active" ? "Inactive" : "Active",
-        });
-      } else {
-        updated.push(r);
-      }
+      updated.push(
+        r.id === id
+          ? { ...r, status: r.status === "Active" ? "Inactive" : "Active" }
+          : r
+      );
     }
 
     setRows(updated);
   }
 
-  // DELETE CUSTOMER
   function confirmDelete() {
     const newArr = [];
     for (let i = 0; i < rows.length; i++) {
@@ -140,16 +162,19 @@ useEffect(() => {
     exportCSV(filtered, "customers-export.csv");
   }
 
-  // UI
-  if (loading) return <div className="p-6">Loading customers...</div>;
+  /* ------------------ UI ------------------ */
+  if (loading) return <div className="p-6">Loading customers…</div>;
   if (error) return <div className="p-6 text-red-600">{error}</div>;
 
   return (
     <div>
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
         <div>
           <h2 className="text-xl font-semibold">Customers</h2>
-          <p className="text-sm text-gray-500">View and manage all customers</p>
+          <p className="text-sm text-gray-500">
+            View and manage all customers
+          </p>
         </div>
 
         <div className="flex gap-2">
@@ -186,7 +211,6 @@ useEffect(() => {
             <option value="">All status</option>
             <option value="Active">Active</option>
             <option value="Inactive">Inactive</option>
-            <option value="Suspended">Suspended</option>
           </select>
 
           <select
@@ -225,105 +249,91 @@ useEffect(() => {
           </div>
         </div>
 
-        {/* TABLE*/}
+        {/* Table */}
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-50">
               <tr>
                 <th className="p-3 text-left">Customer</th>
+                <th className="p-3 text-left">JobOrders</th>
                 <th className="p-3 text-left">Subscription</th>
-                <th className="p-3 text-left">Package</th>
-                <th className="p-3 text-left">Amount</th>
-                <th className="p-3 text-left">Validity From</th>
-                <th className="p-3 text-left">Validity To</th>
+                <th className="p-3 text-left">PromoType</th>
+                <th className="p-3 text-left">PromoCode</th>
+                <th className="p-3 text-left">BaseAmount</th>
+                <th className="p-3 text-left">AmountPaid</th>
+                <th className="p-3 text-left">DateSubscribed</th>
+                <th className="p-3 text-left">ValidityFrom</th>
+                <th className="p-3 text-left">ValidityTo</th>
                 <th className="p-3 text-left">Status</th>
-                <th className="p-3 text-left">Subscribed</th>
-                <th className="p-3 text-left">Promo</th>
                 <th className="p-3 text-left">Actions</th>
               </tr>
             </thead>
 
             <tbody>
-              {(() => {
-                const items = [];
+              {filtered.length === 0 && (
+                <tr>
+                  <td colSpan={12} className="p-4 text-gray-500">
+                    No records found
+                  </td>
+                </tr>
+              )}
 
-                for (let i = 0; i < filtered.length; i++) {
-                  const r = filtered[i];
-                  items.push(
-                    <tr key={r.id} className="border-t">
-                      <td className="p-3">
-                        <div className="font-medium">{r.name}</div>
-                        <div className="text-xs text-gray-500">{r.email}</div>
-                      </td>
-
-                      <td className="p-3">{r.subscription}</td>
-                      <td className="p-3">{r.packageType}</td>
-                      <td className="p-3">
-                        ₦{Number(r.amountPaid).toLocaleString()}
-                      </td>
-
-                      <td className="p-3">
-                        {new Date(r.validityFrom).toLocaleDateString()}
-                      </td>
-                      <td className="p-3">
-                        {new Date(r.validityTo).toLocaleDateString()}
-                      </td>
-
-                      <td className="p-3">
-                        <span
-                          className={`px-2 py-1 rounded text-xs ${
-                            r.status === "Active"
-                              ? "bg-green-50 text-green-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
-                        >
-                          {r.status}
-                        </span>
-                      </td>
-
-                      <td className="p-3">
-                        {new Date(r.dateSubscribed).toLocaleDateString()}
-                      </td>
-                      <td className="p-3">{r.promoCode}</td>
-
-                      <td className="p-3">
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => setSelectedCustomer(r)}
-                            className="px-2 py-1 border rounded"
-                          >
-                            View
-                          </button>
-                          <button
-                            onClick={() => toggleActive(r.id)}
-                            className="px-2 py-1 border rounded"
-                          >
-                            {r.status === "Active" ? "Deactivate" : "Activate"}
-                          </button>
-                          <button
-                            onClick={() => setConfirm({ open: true, id: r.id })}
-                            className="px-2 py-1 border rounded text-red-600"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                }
-
-                if (filtered.length === 0) {
-                  items.push(
-                    <tr key="empty">
-                      <td colSpan={9} className="p-4 text-gray-500">
-                        No records found
-                      </td>
-                    </tr>
-                  );
-                }
-
-                return items;
-              })()}
+              {filtered.map((r) => (
+                <tr key={r.id} className="border-t">
+                  <td className="p-3">
+                    <div className="font-medium">{r.name}</div>
+                    <div className="text-xs text-gray-500">{r.email}</div>
+                  </td>
+                  <td className="p-3">{r.jobOrders}</td>
+                  <td className="p-3">{r.subscriptionType}</td>
+                  <td className="p-3">{r.promoType}</td>
+                  <td className="p-3">{r.promoCode}</td>
+                  <td className="p-3">{r.baseAmount}</td>
+                  <td className="p-3">
+                    {r.amountPaid === "N/A"
+                      ? "N/A"
+                      : `₦${Number(r.amountPaid).toLocaleString()}`}
+                  </td>
+                  <td className="p-3">{formatDate(r.dateSubscribed)}</td>
+                  <td className="p-3">{formatDate(r.validityFrom)}</td>
+                  <td className="p-3">{formatDate(r.validityTo)}</td>
+                  <td className="p-3">
+                    <span
+                      className={`px-2 py-1 rounded text-xs ${
+                        r.status === "Active"
+                          ? "bg-green-50 text-green-700"
+                          : "bg-gray-100 text-gray-700"
+                      }`}
+                    >
+                      {r.status}
+                    </span>
+                  </td>
+                  <td className="p-3">
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => setSelectedCustomer(r)}
+                        className="px-2 py-1 border rounded"
+                      >
+                        View
+                      </button>
+                      <button
+                        onClick={() => toggleActive(r.id)}
+                        className="px-2 py-1 border rounded"
+                      >
+                        {r.status === "Active" ? "Deactivate" : "Activate"}
+                      </button>
+                      <button
+                        onClick={() =>
+                          setConfirm({ open: true, id: r.id })
+                        }
+                        className="px-2 py-1 border rounded text-red-600"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -332,14 +342,10 @@ useEffect(() => {
           <div>
             Showing {filtered.length} of {rows.length} entries
           </div>
-          <div className="flex gap-2">
-            <button className="px-2 py-1 border rounded">Prev</button>
-            <span>Page 1 of 1</span>
-            <button className="px-2 py-1 border rounded">Next</button>
-          </div>
         </div>
       </div>
 
+      {/* Modals */}
       <ViewCustomerModal
         customer={selectedCustomer}
         onClose={() => setSelectedCustomer(null)}

@@ -1,13 +1,25 @@
 import { NavLink } from "react-router-dom";
-import { Home, Users, Truck, ShoppingBag, Gift, LifeBuoy, BarChart2 } from "lucide-react";
-import SnSlog from '../assets/icon/SnSlogo.png';
- 
+import {
+  Home,
+  Users,
+  Truck,
+  ShoppingBag,
+  Gift,
+  LifeBuoy,
+  BarChart2,
+} from "lucide-react";
+import SnSlog from "../assets/icon/SnSlogo.png";
+
 const menuItems = [
-  { name: "Overview", icon: <Home size={18} />, path: "/dashboard" },
+  { name: "Overview", icon: <Home size={18} />, path: "/overview" },
   { name: "Admins", icon: <Users size={18} />, path: "/admins" },
-  { name: "Service Delivery", icon: <Truck size={18} />, path: "/service-delivery " },
+  { name: "Service Delivery", icon: <Truck size={18} />, path: "/service-delivery" },
   { name: "Supplier", icon: <ShoppingBag size={18} />, path: "/suppliers" },
-  { name: "Promotions & Sub", icon: <Gift size={18} />, path: "/promotions" },
+  {
+    name: "Promotions & Sub",
+    icon: <Gift size={18} />,
+    path: "/promotionsAndSubscriptions",
+  },
   { name: "Support", icon: <LifeBuoy size={18} />, path: "/support" },
   { name: "Report", icon: <BarChart2 size={18} />, path: "/reports" },
 ];
@@ -15,19 +27,25 @@ const menuItems = [
 export default function Sidebar() {
   return (
     <aside className="w-60 bg-black text-white flex flex-col rounded-2xl m-3 p-4">
+      {/* Logo */}
       <div className="flex items-center gap-2 mb-10 mt-2">
         <img src={SnSlog} alt="Logo" className="w-8 h-8" />
         <h1 className="font-bold text-lg">Screws & Spanners</h1>
       </div>
 
+      {/* Navigation */}
       <nav className="flex-1 space-y-2">
         {menuItems.map((item, i) => (
           <NavLink
             key={i}
             to={item.path}
+            end
             className={({ isActive }) =>
-              `flex items-center gap-3 px-3 py-2 rounded-lg transition ${
-                isActive ? "bg-brand-primary text-white" : "hover:bg-gray-800"
+              `flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-200 
+              ${
+                isActive
+                  ? "bg-brand-primary text-yellow-400 shadow-md scale-[1.02]"
+                  : "text-gray-300 hover:bg-gray-800 hover:text-white"
               }`
             }
           >
@@ -37,9 +55,10 @@ export default function Sidebar() {
         ))}
       </nav>
 
+      {/* User */}
       <div className="flex items-center gap-3 mt-auto border-t border-gray-700 pt-4">
         <img
-          src= {SnSlog}        
+          src={SnSlog}
           alt="User"
           className="w-10 h-10 rounded-full object-cover"
         />

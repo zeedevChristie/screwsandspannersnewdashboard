@@ -12,6 +12,6 @@ export default function Tabs({ tabs, active, onChange }) {
           {t.label}
         </button>
       ))}
-    </div>
+    </div> 
   );
 }

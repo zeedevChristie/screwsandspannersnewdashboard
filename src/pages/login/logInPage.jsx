@@ -29,7 +29,7 @@ const LoginPage = () => {
       if (data.token) {
         // Save token for authenticated requests
         localStorage.setItem("authToken", data.token);
-        navigate("/dashboard");
+        navigate("/overview"); // Redirect to overview page after successful login
       } else {
         alert("Oops! Login failed. Please check your credentials.");
       }
@@ -55,11 +55,11 @@ const LoginPage = () => {
         </div>
 
         {/* Heading */}
-        <div className="mb-6">
-          <h2 className="text-lg sm:text-xl font-bold">
+        <div className="mb-6 text-white ">
+          <h2 className="text-lg sm:text-xl font-bold ">
             Sign In to your account
           </h2>
-          <p className="text-xs sm:text-sm mt-2 text-gray-600 dark:text-gray-300">
+          <p className="text-xs sm:text-sm mt-2 ">
             Welcome back, enter your details to sign in as an admin
           </p>
         </div>
@@ -68,7 +68,7 @@ const LoginPage = () => {
         <form onSubmit={handleLogin}>
           {/* Phone Number */}
           <div className="mb-4">
-            <label className="block text-sm font-medium mb-1">Phone Number</label>
+            <label className="block text-sm text-white font-medium mb-1">Phone Number</label>
             <input
               type="text"
               placeholder="Enter phone number"
@@ -81,7 +81,7 @@ const LoginPage = () => {
           {/* Password */}
           <div className="mb-4">
             <div className="flex justify-between items-center mb-1">
-              <label className="text-sm font-medium">Password</label>
+              <label className="text-sm text-white font-medium">Password</label>
               <a
                 href="#"
                 className="text-sm text-red-600 underline underline-offset-2 hover:text-red-700"
@@ -101,7 +101,7 @@ const LoginPage = () => {
           {/* Submit Button */}
           <button
             type="submit"
-            className="bg-black text-white py-2 rounded mt-4 w-full mx-auto block hover:bg-gray-900 transition"
+            className="bg-gray-700 text-white py-2 rounded mt-4 w-full mx-auto block hover:bg-gray-900 transition"
           >
             Sign In
           </button>

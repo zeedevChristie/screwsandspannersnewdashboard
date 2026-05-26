@@ -1,12 +1,13 @@
 import React from 'react'
 import Dashboard from '../dashboard'
+import ReportsHistory from './reportsHistory'
 
 const Reports = () => {
   return (
     <div>
         <Dashboard/>
-      reports
-    </div>
+        <ReportsHistory/>
+            </div>
   )
 }
 

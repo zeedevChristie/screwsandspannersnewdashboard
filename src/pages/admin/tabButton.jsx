@@ -8,7 +8,7 @@ export default function TabButton({ label, isActive, onClick }) {
           : "text-gray-600 hover:text-gray-900"
       }`}
     >
-      {label}
+      {label} 
     </button>
   );
 }

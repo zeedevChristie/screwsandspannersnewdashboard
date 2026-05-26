@@ -50,7 +50,6 @@ export default function ServiceDeliveryPage () {
           />
         ))}
       </div>
-
       <div className="mt-6">{renderContent()}</div>
     </div>
     </div>  
