@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import StatusFilter from "./statusFilter";
 import SubscriptionCard from "./subscriptionCard";
 import SubscriptionHeader from "./subscriptionHeader";
-import AddSubscriptionModal from "./AddSubscriptionModal";
+import AddSubscriptionModal from "./addSubscriptionModal";
 
 export default function SubscriptionPlans() {
   const [plans, setPlans] = useState([]);

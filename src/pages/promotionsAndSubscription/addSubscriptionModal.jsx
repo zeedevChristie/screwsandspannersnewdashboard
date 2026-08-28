@@ -4,7 +4,7 @@ export default function AddSubscriptionModal({ isOpen, onClose, onSuccess }) {
   const [formData, setFormData] = useState({
     description: "",
     duration: "",
-    amount: "",
+    amount: "", 
     effectiveDate: "",
   });
   const [loading, setLoading] = useState(false);
