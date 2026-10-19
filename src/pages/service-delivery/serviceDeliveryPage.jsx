@@ -11,7 +11,7 @@ import Customer from "./customer";
 
 
 export default function ServiceDeliveryPage () {
-  const [activeTab, setActiveTab] = useState("Search Statistics");
+  const [activeTab, setActiveTab] = useState("All Users");
 
   const tabs = ["Search Statistics", "Job Orders", "Service Providers", "All Users", "Verification", "Category Tree"];
 

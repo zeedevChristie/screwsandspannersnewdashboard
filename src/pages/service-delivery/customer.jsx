@@ -979,28 +979,9 @@ export default function Customer() {
        * Convert every API user
        * into a DataGrid row.
        */
-      const mappedUsers = collectedUsers.map((user, index) => mapUserToRow(user, index));
+       const mappedUsers = collectedUsers.map((user, index) => mapUserToRow(user, index));
 
-      console.log("ALL USERS:", mappedUsers);
-
-      console.log("TOTAL USERS:", mappedUsers.length);
-
-      /*
-       * SP BADGE CHECK
-       * Look at these in the console to confirm:
-       * 1) what "type" looks like for SPs
-       * 2) that business.badge is coming from the API
-       */
-      console.log(
-        "USER TYPES FOUND:",
-        [...new Set(mappedUsers.map((u) => u?.type))],
-      );
-      console.log(
-        "FIRST SP (check business.badge):",
-        mappedUsers.find((u) => isSP(u)),
-      );
-
-      setAllUsers(mappedUsers);
+       setAllUsers(mappedUsers);
     } catch (err) {
       console.error("Failed to load users:", err);
 
@@ -2113,8 +2094,10 @@ export default function Customer() {
         sx={{
           display: "flex",
           justifyContent: "flex-end",
+          alignItems: "center",
           gap: 1,
           mb: 2,
+          flexWrap: "wrap",
         }}
       >
         <Button variant="outlined" size="small" onClick={handleExportAll}>
