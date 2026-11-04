@@ -149,7 +149,7 @@ export default function SearchStatistics() {
             <tbody>
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan="14" className="px-3 py-4 text-center text-gray-500">
+                  <td colSpan={14} className="px-3 py-4 text-center text-gray-500">
                     No results found.
                   </td>
                 </tr>

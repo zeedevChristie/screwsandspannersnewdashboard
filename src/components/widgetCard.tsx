@@ -16,7 +16,7 @@ export default function WidgetCard({
         group
         rounded-2xl
         border
-        p-6
+        p-2
         transition-all
         duration-300
         cursor-pointer

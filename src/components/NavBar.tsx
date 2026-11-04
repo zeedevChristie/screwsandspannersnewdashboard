@@ -1,5 +1,6 @@
-import { Search, Bell } from "lucide-react";
+import { Search } from "lucide-react";
 import { AnimalTheme } from "@/types/animal";
+import NotificationBell from "@/components/notificationBell";
 
 interface NavbarProps {
   animal: AnimalTheme;
@@ -27,7 +28,7 @@ export default function NavBar({ animal }: Readonly<NavbarProps>) {
             className="text-2xl font-bold tracking-tight"
             style={{ color: animal.primary }}
           >
-            {animal.eyeName} - (Dasboard)
+            {animal.eyeName} - (Dashboard)
           </h2>
 
           <p className="text-xs text-gray-500">
@@ -69,21 +70,7 @@ export default function NavBar({ animal }: Readonly<NavbarProps>) {
           />
         </div>
 
-        <button
-          className="
-            flex
-            h-11
-            w-11
-            items-center
-            justify-center
-            rounded-xl
-            bg-gray-100
-            transition
-            hover:bg-gray-200
-          "
-        >
-          <Bell size={20} />
-        </button>
+        <NotificationBell color={animal.primary} />
       </div>
     </header>
   );

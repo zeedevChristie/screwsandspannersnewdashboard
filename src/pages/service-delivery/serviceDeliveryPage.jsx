@@ -13,18 +13,18 @@ import Customer from "./customer";
 export default function ServiceDeliveryPage () {
   const [activeTab, setActiveTab] = useState("All Users");
 
-  const tabs = ["Search Statistics", "Job Orders", "Service Providers", "All Users", "Verification", "Category Tree"];
+  const tabs = ["All Users", "Search Statistics", "Job Orders", "Service Providers",  "Verification", "Category Tree"];
 
   const renderContent = () => {
     switch (activeTab) {
+      case "All Users":
+        return <Customer />;
       case "Search Statistics":
         return <SearchStatistics/>;
       case "Job Orders":
         return <JobOrders />;
       case "Service Providers":
         return <ServiceProviders />;
-      case "All Users":
-        return <Customer />;
       case "Verification":
         return <Verification />;
       case "Category Tree":
