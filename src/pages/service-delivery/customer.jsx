@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   DataGrid,
   GridToolbarContainer,
@@ -23,12 +23,32 @@ import {
   DialogContent,
   IconButton,
   Tooltip,
+  ToggleButton,
+  ToggleButtonGroup,
 } from "@mui/material";
 
-import { Search, X, RefreshCw, Eye } from "lucide-react";
+import {
+  Search,
+  X,
+  RefreshCw,
+  Eye,
+  CreditCard,
+  Award,
+  UserX,
+  Download,
+  ChevronLeft,
+  ChevronRight,
+  Wallet,
+} from "lucide-react";
 
 // SP BADGE (new file: spBadge.jsx, same folder as this file)
 import { useSpBadge, SpBadgeToolbar, SpBadgeDialogs, isSP, isBadged } from "./spBadge";
+
+// REPORT (new file: userReport.jsx, same folder as this file)
+import UserReport from "./userReport";
+
+// REVENUE (new file: src/lib/revenue.ts)
+import { getRevenueSummary, formatNaira } from "@/lib/revenue";
 
 /* =========================================================
    API CONFIGURATION
@@ -576,6 +596,98 @@ const addressColumns = [
   makeAddressColumn("userState", "State", 150, "state"),
 ];
 
+/* Promo amount: "10" with type PERCENTAGE shows as "10%" */
+const formatPromoAmount = (row) => {
+  const amount = row?.promoAmount;
+
+  if (amount === null || amount === undefined || amount === "" || amount === "N/A") {
+    return "N/A";
+  }
+
+  return String(row?.promoType || "").toUpperCase() === "PERCENTAGE"
+    ? `${amount}%`
+    : String(amount);
+};
+
+/* A plain text column. Shows N/A when the value is empty. */
+const makeTextColumn = (field, headerName, width, getter) => ({
+  field,
+  headerName,
+  width,
+  sortable: true,
+  filterable: true,
+
+  valueGetter: (value, row) => {
+    const result = getter(row);
+
+    return result === null || result === undefined || result === "" ? "N/A" : String(result);
+  },
+});
+
+/* Business fields that were not in the table before */
+const businessExtraColumns = [
+  makeTextColumn("businessArea", "Business Area", 160, (r) => r?.business?.area),
+  makeTextColumn("businessState", "Business State", 150, (r) => r?.business?.state),
+  makeTextColumn("businessLga", "Business LGA", 150, (r) => r?.business?.lga),
+  makeTextColumn("businessLandmark", "Business Landmark", 180, (r) => r?.business?.landmark),
+  makeTextColumn("associationId", "Association ID", 160, (r) => r?.business?.association_id),
+  makeTextColumn(
+    "stateResidencyId",
+    "State Residency ID",
+    180,
+    (r) => r?.business?.state_residency_id,
+  ),
+];
+
+/* Subscription fields that were not in the table before */
+const subscriptionExtraColumns = [
+  makeTextColumn("packageName", "Package", 130, (r) => (r?.subscription ? r.packageName : null)),
+
+  {
+    field: "paymentStatus",
+    headerName: "Payment Status",
+    width: 150,
+    sortable: true,
+    filterable: true,
+
+    valueGetter: (value, row) => (row?.subscription ? row?.paymentStatus || "N/A" : "N/A"),
+
+    renderCell: (params) => {
+      if (!params?.row?.subscription) {
+        return "N/A";
+      }
+
+      const success = String(params?.value || "").toUpperCase() === "SUCCESSFUL";
+
+      return (
+        <Chip
+          label={params?.value || "N/A"}
+          size="small"
+          sx={{
+            backgroundColor: success ? "#ecfdf5" : "#fef2f2",
+            color: success ? "#047857" : "#b91c1c",
+            fontWeight: 600,
+          }}
+        />
+      );
+    },
+  },
+
+  makeTextColumn("transactionRef", "Transaction Ref", 290, (r) =>
+    r?.subscription ? r.transactionRef : null,
+  ),
+  makeTextColumn("promoApplied", "Promo Applied", 140, (r) =>
+    r?.subscription ? r.promoApplied : null,
+  ),
+  makeTextColumn("promoType", "Promo Type", 140, (r) => (r?.subscription ? r.promoType : null)),
+  makeTextColumn("promoAmount", "Promo Amount", 140, (r) =>
+    r?.subscription ? formatPromoAmount(r) : null,
+  ),
+  makeTextColumn("promoDescription", "Promo Description", 260, (r) =>
+    r?.subscription ? r.promoDescription : null,
+  ),
+];
+
 const mapUserToRow = (user, index) => {
   const subscription = getSubscription(user);
 
@@ -604,7 +716,8 @@ const mapUserToRow = (user, index) => {
    * VALID FROM
    * = TRANSACTION DATE
    */
-  const validFrom = getTransactionDate(transaction);
+  const validFrom =
+    subscription?.valid_from || subscription?.validFrom || getTransactionDate(transaction);
 
   /*
    * VALID TO
@@ -616,18 +729,39 @@ const mapUserToRow = (user, index) => {
    * BASE AMOUNT
    * = subscription.amount
    */
-  const baseAmount = subscription?.amount ?? "N/A";
+  const baseAmount =
+    subscription?.base_amount ?? subscription?.baseAmount ?? subscription?.amount ?? "N/A";
 
   /*
    * AMOUNT PAID
    * = transaction.amount
    */
-  const amountPaid = getTransactionAmount(transaction) ?? "N/A";
+  const amountPaid =
+    subscription?.amount_paid ??
+    subscription?.amountPaid ??
+    getTransactionAmount(transaction) ??
+    "N/A";
 
   /*
    * SUBSCRIPTION STATUS
    */
-  const subscriptionStatus = getSubscriptionStatus(subscription);
+  /*
+   * Use the status the API sends (subscription_status: "ACTIVE" ...).
+   * Only when it is missing, work it out from the expiry date.
+   */
+  const apiSubscriptionStatus = String(
+    subscription?.subscription_status ?? subscription?.subscriptionStatus ?? "",
+  )
+    .trim()
+    .toUpperCase();
+
+  const subscriptionStatus = !subscription
+    ? "none"
+    : apiSubscriptionStatus
+      ? apiSubscriptionStatus === "ACTIVE"
+        ? "active"
+        : "expired"
+      : getSubscriptionStatus(subscription);
 
   return {
     ...user,
@@ -679,6 +813,18 @@ const mapUserToRow = (user, index) => {
      * Status
      */
     subscriptionStatus,
+
+    /*
+     * Subscription details from the API
+     */
+    packageName: subscription?.package ?? "N/A",
+    paymentStatus: subscription?.status ?? "N/A",
+    transactionRef:
+      subscription?.subscription_transaction ?? subscription?.subscriptionTransaction ?? "N/A",
+    promoApplied: subscription?.promo?.applied ?? "N/A",
+    promoType: subscription?.promo?.type ?? "N/A",
+    promoAmount: subscription?.promo?.amount ?? "N/A",
+    promoDescription: subscription?.promo?.description ?? "N/A",
 
     /*
      * ADDRESSES (all of them)
@@ -788,33 +934,231 @@ const getTotalPages = (json, pagination, usersLength, pageSize) => {
   return usersLength < pageSize ? 1 : null;
 };
 
+/* Columns hidden in the "Essential" view.
+   They are still one click away: use "All columns" or the Columns button. */
+const HIDDEN_BY_DEFAULT = [
+  "uniq_id",
+  "tradeDisplay",
+  "businessEmail",
+  "businessPhone",
+  "businessAddress",
+  "businessArea",
+  "businessState",
+  "businessLga",
+  "businessLandmark",
+  "associationId",
+  "stateResidencyId",
+  "userAddress",
+  "userArea",
+  "userLandmark",
+  "userLga",
+  "baseAmount",
+  "amountPaid",
+  "packageName",
+  "paymentStatus",
+  "transactionRef",
+  "promoApplied",
+  "promoType",
+  "promoAmount",
+  "promoDescription",
+];
+
+const ESSENTIAL_COLUMNS = Object.fromEntries(HIDDEN_BY_DEFAULT.map((field) => [field, false]));
+
+/* Colour strip on top of each column header, so a wide table is easy to navigate */
+const COLUMN_GROUPS = {
+  badge: {
+    label: "SP badge",
+    color: "#d97706",
+    fields: ["spBadge", "spBadgeSuspended", "spBadgeExpiry"],
+  },
+  subscription: {
+    label: "Subscription",
+    color: "#059669",
+    fields: [
+      "subscriptionDisplay",
+      "baseAmount",
+      "amountPaid",
+      "validFrom",
+      "validTo",
+      "subscriptionStatus",
+      "packageName",
+      "paymentStatus",
+      "transactionRef",
+      "promoApplied",
+      "promoType",
+      "promoAmount",
+      "promoDescription",
+    ],
+  },
+  business: {
+    label: "Business",
+    color: "#7c3aed",
+    fields: [
+      "businessName",
+      "businessEmail",
+      "businessPhone",
+      "businessAddress",
+      "businessArea",
+      "businessState",
+      "businessLga",
+      "businessLandmark",
+      "associationId",
+      "stateResidencyId",
+      "businessVerified",
+    ],
+  },
+  address: {
+    label: "Address",
+    color: "#0ea5e9",
+    fields: ["userAddress", "userArea", "userLandmark", "userLga", "userState"],
+  },
+};
+
+const GROUP_OF_FIELD = {};
+
+Object.entries(COLUMN_GROUPS).forEach(([key, group]) => {
+  group.fields.forEach((field) => {
+    GROUP_OF_FIELD[field] = key;
+  });
+});
+
+const withGroupStyle = (column) => ({
+  ...column,
+  headerClassName: `col-group-${GROUP_OF_FIELD[column.field] || "user"}`,
+});
+
 /* =========================================================
    DATAGRID TOOLBAR
 ========================================================= */
 
-function CustomToolbar({ onExportAll, onExportFiltered }) {
+function CustomToolbar({ onExportAll, onExportFiltered, columnView, onColumnViewChange }) {
   return (
     <GridToolbarContainer
       sx={{
         padding: "12px 16px",
-        borderBottom: "1px solid #eeeeee",
+        borderBottom: "1px solid #e2e8f0",
         gap: 1,
+        flexWrap: "wrap",
+        justifyContent: "space-between",
       }}
     >
-      <GridToolbarColumnsButton />
+      <Box sx={{ display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          value={columnView}
+          onChange={(event, value) => value && onColumnViewChange(value)}
+        >
+          <ToggleButton value="essential">Essential columns</ToggleButton>
+          <ToggleButton value="all">All columns</ToggleButton>
+        </ToggleButtonGroup>
 
-      <GridToolbarFilterButton />
+        <GridToolbarColumnsButton />
 
-      <GridToolbarDensitySelector />
+        <GridToolbarFilterButton />
 
-      <Button variant="outlined" size="small" onClick={onExportAll}>
-        Export All
-      </Button>
+        <GridToolbarDensitySelector />
+      </Box>
 
-      <Button variant="contained" size="small" onClick={onExportFiltered}>
-        Export Filtered
-      </Button>
+      <Box sx={{ display: "flex", gap: 1 }}>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<Download size={15} />}
+          onClick={onExportAll}
+        >
+          Export all
+        </Button>
+
+        <Button
+          variant="contained"
+          size="small"
+          startIcon={<Download size={15} />}
+          onClick={onExportFiltered}
+        >
+          Export filtered
+        </Button>
+      </Box>
     </GridToolbarContainer>
+  );
+}
+
+/* =========================================================
+   SUMMARY TILE (click it to filter the table)
+========================================================= */
+
+function StatTile({ icon, label, value, valueText, note, color, active, onClick }) {
+  return (
+    <Box
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.key === "Enter" || event.key === " ") {
+          onClick?.();
+        }
+      }}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 1.5,
+        p: 2,
+        borderRadius: 3,
+        cursor: "pointer",
+        backgroundColor: "#fff",
+        border: active ? `2px solid ${color}` : "2px solid #e2e8f0",
+        boxShadow: active ? `0 6px 18px ${color}22` : "0 1px 2px rgba(15, 23, 42, 0.04)",
+        transition: "all 0.15s ease",
+        "&:hover": { borderColor: color, transform: "translateY(-1px)" },
+      }}
+    >
+      <Box
+        sx={{
+          width: 44,
+          height: 44,
+          borderRadius: 2.5,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          flexShrink: 0,
+          color,
+          backgroundColor: `${color}1a`,
+        }}
+      >
+        {icon}
+      </Box>
+
+      <Box sx={{ minWidth: 0 }}>
+        <Typography sx={{ fontSize: 12, fontWeight: 600, color: "#64748b" }}>{label}</Typography>
+
+        <Typography sx={{ fontSize: 24, fontWeight: 700, color: "#0f172a", lineHeight: 1.2 }}>
+          {valueText ?? Number(value || 0).toLocaleString("en-NG")}
+        </Typography>
+
+        {note && <Typography sx={{ fontSize: 12, color: "#64748b" }}>{note}</Typography>}
+      </Box>
+    </Box>
+  );
+}
+
+/* =========================================================
+   EMPTY TABLE MESSAGE
+========================================================= */
+
+function NoRowsOverlay({ onClear }) {
+  return (
+    <Box sx={{ py: 8, textAlign: "center" }}>
+      <Typography sx={{ fontWeight: 700, color: "#0f172a" }}>No users found</Typography>
+
+      <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5, mb: 2 }}>
+        Try a different search, or clear the filters.
+      </Typography>
+
+      <Button variant="outlined" size="small" onClick={onClear}>
+        Clear filters
+      </Button>
+    </Box>
   );
 }
 
@@ -864,10 +1208,59 @@ export default function Customer() {
   const [subscriptionFilter, setSubscriptionFilter] = useState("all");
 
   /* -------------------------------------------------------
+     TABLE SORT
+
+     Default: newest signup first.
+     When "Subscribed" is chosen: latest subscriber first
+     (by Valid From, which is the transaction date).
+     The admin can still click any column to change it.
+  ------------------------------------------------------- */
+
+  const DEFAULT_SORT = [{ field: "signupDate", sort: "desc" }];
+
+  const SUBSCRIBER_SORT = [{ field: "validFrom", sort: "desc" }];
+
+  const [sortModel, setSortModel] = useState(DEFAULT_SORT);
+
+  /* -------------------------------------------------------
+     VISIBLE COLUMNS
+     "Essential" hides the detail columns so the table is easy to read.
+  ------------------------------------------------------- */
+
+  const [columnVisibility, setColumnVisibility] = useState({});
+
+  const columnView = HIDDEN_BY_DEFAULT.some((field) => columnVisibility[field] === false)
+    ? "essential"
+    : "all";
+
+  const handleColumnViewChange = (view) => {
+    setColumnVisibility(view === "essential" ? ESSENTIAL_COLUMNS : {});
+  };
+
+  /* -------------------------------------------------------
+     TABLE SCROLLING
+     The left and right arrow buttons move the table sideways.
+  ------------------------------------------------------- */
+
+  const tableWrapRef = useRef(null);
+
+  const scrollTable = (direction) => {
+    const scroller = tableWrapRef.current?.querySelector(".MuiDataGrid-virtualScroller");
+
+    scroller?.scrollBy({ left: direction * 600, behavior: "smooth" });
+  };
+
+  /* -------------------------------------------------------
      SELECTED USER
   ------------------------------------------------------- */
 
   const [selectedUser, setSelectedUser] = useState(null);
+
+  /* -------------------------------------------------------
+     REPORT DIALOG
+  ------------------------------------------------------- */
+
+  const [reportOpen, setReportOpen] = useState(false);
 
   /* =======================================================
      FETCH ALL USERS FROM ALL API PAGES
@@ -1026,6 +1419,13 @@ export default function Customer() {
   const badge = useSpBadge(setAllUsers, fetchAllUsers, allUsers);
 
   /* =======================================================
+     REVENUE
+     Added up from the "amount paid" of every subscription.
+  ======================================================= */
+
+  const revenue = useMemo(() => getRevenueSummary(allUsers), [allUsers]);
+
+  /* =======================================================
      FILTER ALL USERS
 
      IMPORTANT:
@@ -1113,7 +1513,19 @@ export default function Customer() {
     setSearchInput("");
     setSearch("");
     setSubscriptionFilter("all");
+    setSortModel(DEFAULT_SORT);
     badge.setFilter("all");
+  };
+
+  /* =======================================================
+     SUBSCRIPTION FILTER CHANGE
+     "Subscribed" loads with the latest subscriber on top.
+======================================================= */
+
+  const handleSubscriptionFilterChange = (value) => {
+    setSubscriptionFilter(value);
+
+    setSortModel(value === "subscribed" ? SUBSCRIBER_SORT : DEFAULT_SORT);
   };
 
   /* =======================================================
@@ -1132,6 +1544,12 @@ export default function Customer() {
       "Business Email",
       "Business Phone",
       "Business Address",
+      "Business Area",
+      "Business State",
+      "Business LGA",
+      "Business Landmark",
+      "Association ID",
+      "State Residency ID",
       "Address",
       "Area",
       "Landmark",
@@ -1144,6 +1562,13 @@ export default function Customer() {
       "Amount Paid",
       "Base Amount",
       "Subscription Status",
+      "Package",
+      "Payment Status",
+      "Transaction Ref",
+      "Promo Applied",
+      "Promo Type",
+      "Promo Amount",
+      "Promo Description",
       "Account Status",
       "Business Verified",
       "SP Badge",
@@ -1177,6 +1602,12 @@ export default function Customer() {
           escapeCsv(row?.business?.business_email || "N/A"),
           escapeCsv(row?.business?.business_phone || "N/A"),
           escapeCsv(row?.business?.business_address || "N/A"),
+          escapeCsv(row?.business?.area || "N/A"),
+          escapeCsv(row?.business?.state || "N/A"),
+          escapeCsv(row?.business?.lga || "N/A"),
+          escapeCsv(row?.business?.landmark || "N/A"),
+          escapeCsv(row?.business?.association_id || "N/A"),
+          escapeCsv(row?.business?.state_residency_id || "N/A"),
           escapeCsv(joinAddressField(row, "address")),
           escapeCsv(joinAddressField(row, "area")),
           escapeCsv(joinAddressField(row, "landmark")),
@@ -1189,6 +1620,13 @@ export default function Customer() {
           escapeCsv(row?.amountPaid || "N/A"),
           escapeCsv(row?.baseAmount || "N/A"),
           escapeCsv(row?.subscriptionStatus || "N/A"),
+          escapeCsv(row?.subscription ? row?.packageName : "N/A"),
+          escapeCsv(row?.subscription ? row?.paymentStatus : "N/A"),
+          escapeCsv(row?.subscription ? row?.transactionRef : "N/A"),
+          escapeCsv(row?.subscription ? row?.promoApplied : "N/A"),
+          escapeCsv(row?.subscription ? row?.promoType : "N/A"),
+          escapeCsv(row?.subscription ? formatPromoAmount(row) : "N/A"),
+          escapeCsv(row?.subscription ? row?.promoDescription : "N/A"),
           escapeCsv(Number(row?.active) === 1 ? "Active" : "Inactive"),
           escapeCsv(Number(row?.business?.verified) === 1 ? "Verified" : "Not Verified"),
           escapeCsv(isSP(row) ? (isBadged(row) ? "Badged" : "Not Badged") : "N/A"),
@@ -1351,8 +1789,8 @@ export default function Customer() {
             label={params?.value || "N/A"}
             size="small"
             sx={{
-              backgroundColor: "#eef2ff",
-              color: "#4338ca",
+              backgroundColor: "#eff6ff",
+              color: "#1d4ed8",
               fontWeight: 600,
             }}
           />
@@ -1400,8 +1838,8 @@ export default function Customer() {
                   label={trade}
                   size="small"
                   sx={{
-                    backgroundColor: "#eef2ff",
-                    color: "#4338ca",
+                    backgroundColor: "#eff6ff",
+                    color: "#1d4ed8",
                     fontWeight: 600,
                     maxWidth: "100%",
                   }}
@@ -1546,6 +1984,12 @@ export default function Customer() {
       },
 
       /* ===================================================
+         BUSINESS EXTRA FIELDS (area, state, LGA, landmark, IDs)
+      =================================================== */
+
+      ...businessExtraColumns,
+
+      /* ===================================================
          SUBSCRIPTION
       =================================================== */
 
@@ -1652,10 +2096,7 @@ export default function Customer() {
             return null;
           }
 
-          const amount = Number(
-            // row?.amountPaid
-            row?.subscription,
-          );
+          const amount = Number(row?.amountPaid);
 
           return Number.isNaN(amount) ? null : amount;
         },
@@ -1779,6 +2220,13 @@ export default function Customer() {
       },
 
       /* ===================================================
+         SUBSCRIPTION EXTRA FIELDS (package, payment status,
+         transaction ref, promo)
+      =================================================== */
+
+      ...subscriptionExtraColumns,
+
+      /* ===================================================
          VERIFICATION
       =================================================== */
 
@@ -1835,7 +2283,7 @@ export default function Customer() {
               size="small"
               onClick={() => setSelectedUser(params.row)}
               sx={{
-                color: "#4f46e5",
+                color: "#2563eb",
               }}
             >
               <Eye size={18} />
@@ -1843,7 +2291,7 @@ export default function Customer() {
           </Tooltip>
         ),
       },
-    ],
+    ].map(withGroupStyle),
     [badge.columns],
   );
 
@@ -1932,6 +2380,10 @@ export default function Customer() {
      MAIN UI
 ======================================================= */
 
+  const hasActiveFilters = Boolean(
+    search || searchInput || subscriptionFilter !== "all" || badge.filter !== "all",
+  );
+
   return (
     <Box
       sx={{
@@ -1948,155 +2400,153 @@ export default function Customer() {
           display: "flex",
           justifyContent: "space-between",
           alignItems: "center",
-          mb: 2,
+          flexWrap: "wrap",
+          mb: 3,
           gap: 2,
         }}
       >
         <Box>
-          <Typography variant="h5" fontWeight={700} color="#111827">
+          <Typography
+            variant="h5"
+            sx={{ fontWeight: 700, color: "#0f172a", letterSpacing: "-0.01em" }}
+          >
             Users
           </Typography>
 
-          <Typography
-            variant="body2"
-            color="#6b7280"
-            sx={{
-              mt: 0.5,
-            }}
-          >
-            Manage users and subscription details
+          <Typography variant="body2" sx={{ color: "#64748b", mt: 0.5 }}>
+            Manage users, subscriptions and SP badges
           </Typography>
         </Box>
 
-        <Button variant="outlined" startIcon={<RefreshCw size={17} />} onClick={fetchAllUsers}>
-          Refresh
-        </Button>
+        <Box sx={{ display: "flex", gap: 1 }}>
+          <Button variant="contained" onClick={() => setReportOpen(true)}>
+            View report
+          </Button>
+
+          <Button variant="outlined" startIcon={<RefreshCw size={16} />} onClick={fetchAllUsers}>
+            Refresh
+          </Button>
+        </Box>
       </Box>
 
       {/* ===================================================
-          FILTER BAR
+          SUMMARY TILES (click one to filter the table)
+      =================================================== */}
+
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
+          gap: 2,
+          mb: 3,
+        }}
+      >
+        <StatTile
+          icon={<CreditCard size={22} />}
+          label="Subscribed"
+          value={allUsers.filter((user) => Boolean(user?.subscription)).length}
+          note={`${allUsers.filter((user) => user?.subscription && user?.subscriptionStatus === "active").length.toLocaleString("en-NG")} active`}
+          color="#059669"
+          active={subscriptionFilter === "subscribed"}
+          onClick={() => handleSubscriptionFilterChange("subscribed")}
+        />
+
+        <StatTile
+          icon={<UserX size={22} />}
+          label="No subscription"
+          value={allUsers.filter((user) => !user?.subscription).length}
+          color="#64748b"
+          active={subscriptionFilter === "none"}
+          onClick={() => handleSubscriptionFilterChange("none")}
+        />
+
+        <StatTile
+          icon={<Award size={22} />}
+          label="SP badged"
+          value={allUsers.filter((user) => isSP(user) && isBadged(user)).length}
+          note={`${allUsers.filter((user) => isSP(user)).length.toLocaleString("en-NG")} SPs in total`}
+          color="#d97706"
+          active={badge.filter === "badged"}
+          onClick={() => badge.setFilter("badged")}
+        />
+
+        <StatTile
+          icon={<Wallet size={22} />}
+          label="Revenue"
+          valueText={formatNaira(revenue.total)}
+          note={`From ${revenue.count.toLocaleString("en-NG")} paying subscribers`}
+          color="#0d9488"
+          active={false}
+          onClick={() => handleSubscriptionFilterChange("subscribed")}
+        />
+      </Box>
+
+      {/* ===================================================
+          SEARCH AND FILTERS
       =================================================== */}
 
       <Box
         sx={{
           backgroundColor: "#fff",
-          border: "1px solid #e5e7eb",
-          borderRadius: 2,
+          border: "1px solid #e2e8f0",
+          borderRadius: 3,
           padding: 2,
           mb: 2,
           display: "flex",
-          gap: 2,
+          gap: 1.5,
           alignItems: "center",
           flexWrap: "wrap",
         }}
       >
-        {/* SEARCH */}
-
-        <Box
-          sx={{
-            display: "flex",
-            gap: 1,
-            flex: 1,
-            minWidth: 300,
-          }}
-        >
-          <TextField
-            fullWidth
-            size="small"
-            placeholder="Search by name..."
-            value={searchInput}
-            onChange={(event) => setSearchInput(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                handleSearch();
-              }
-            }}
-            InputProps={{
-              startAdornment: (
-                <Search
-                  size={18}
-                  style={{
-                    marginRight: 8,
-                    color: "#9ca3af",
-                  }}
-                />
-              ),
-            }}
-          />
-
-          <Button
-            variant="contained"
-            onClick={handleSearch}
-            sx={{
-              minWidth: 95,
-            }}
-          >
-            Search
-          </Button>
-
-          {(search || searchInput || subscriptionFilter !== "all" || badge.filter !== "all") && (
-            <Button variant="outlined" onClick={handleClear}>
-              Clear
-            </Button>
-          )}
-        </Box>
-
-        {/* SUBSCRIPTION FILTER */}
-
-        <FormControl
+        <TextField
           size="small"
-          sx={{
-            minWidth: 210,
+          placeholder="Search by name..."
+          value={searchInput}
+          onChange={(event) => setSearchInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              handleSearch();
+            }
           }}
-        >
+          sx={{ flex: 1, minWidth: 260 }}
+          InputProps={{
+            startAdornment: (
+              <Search
+                size={18}
+                style={{
+                  marginRight: 8,
+                  color: "#94a3b8",
+                }}
+              />
+            ),
+          }}
+        />
+
+        <Button variant="contained" onClick={handleSearch} sx={{ minWidth: 95 }}>
+          Search
+        </Button>
+
+        <FormControl size="small" sx={{ minWidth: 200 }}>
           <InputLabel>Subscription</InputLabel>
 
           <Select
             label="Subscription"
             value={subscriptionFilter}
-            onChange={(event) => setSubscriptionFilter(event.target.value)}
+            onChange={(event) => handleSubscriptionFilterChange(event.target.value)}
           >
-            <MenuItem value="all">All Users</MenuItem>
+            <MenuItem value="all">All users</MenuItem>
 
-            <MenuItem value="subscribed">Subscribed</MenuItem>
+            <MenuItem value="subscribed">Subscribed (latest first)</MenuItem>
 
-            <MenuItem value="none">No Subscription</MenuItem>
+            <MenuItem value="none">No subscription</MenuItem>
           </Select>
         </FormControl>
-      </Box>
 
-      {/* ===================================================
-          COUNTS
-      =================================================== */}
-
-      <Box
-        sx={{
-          display: "flex",
-          gap: 1,
-          mb: 2,
-          flexWrap: "wrap",
-        }}
-      >
-        <Chip label={`Total: ${allUsers.length}`} variant="outlined" />
-
-        <Chip label={`Showing: ${filteredUsers.length}`} variant="outlined" color="primary" />
-
-        <Chip
-          label={`Subscribed: ${allUsers.filter((user) => Boolean(user?.subscription)).length}`}
-          variant="outlined"
-          color="success"
-        />
-
-        <Chip
-          label={`No Subscription: ${allUsers.filter((user) => !user?.subscription).length}`}
-          variant="outlined"
-        />
-
-        <Chip
-          label={`SP Badged: ${allUsers.filter((user) => isSP(user) && isBadged(user)).length}`}
-          variant="outlined"
-          color="warning"
-        />
+        {hasActiveFilters && (
+          <Button variant="text" startIcon={<X size={16} />} onClick={handleClear}>
+            Clear filters
+          </Button>
+        )}
       </Box>
 
       {/* ===================================================
@@ -2106,39 +2556,104 @@ export default function Customer() {
       <SpBadgeToolbar badge={badge} />
 
       {/* ===================================================
-          EXPORT ACTIONS
-      =================================================== */}
-
-      <Box
-        sx={{
-          display: "flex",
-          justifyContent: "flex-end",
-          gap: 1,
-          mb: 2,
-        }}
-      >
-        <Button variant="outlined" size="small" onClick={handleExportAll}>
-          Export All
-        </Button>
-
-        <Button variant="contained" size="small" onClick={handleExportFiltered}>
-          Export Filtered
-        </Button>
-      </Box>
-
-      {/* ===================================================
           DATAGRID
       =================================================== */}
 
       <Box
         sx={{
-          width: "100%",
-          backgroundColor: "#fff",
-          borderRadius: 2,
-          overflow: "hidden",
-          border: "1px solid #e5e7eb",
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          flexWrap: "wrap",
+          gap: 1,
+          mb: 1,
         }}
       >
+        <Typography variant="body2" sx={{ color: "#64748b" }}>
+          Showing {filteredUsers.length.toLocaleString("en-NG")} of{" "}
+          {allUsers.length.toLocaleString("en-NG")} users
+        </Typography>
+
+        <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap", alignItems: "center" }}>
+          {[
+            { label: "User", color: "#2563eb" },
+            ...Object.values(COLUMN_GROUPS).map((group) => ({
+              label: group.label,
+              color: group.color,
+            })),
+          ].map((item) => (
+            <Box
+              key={item.label}
+              sx={{ display: "flex", alignItems: "center", gap: 0.75, fontSize: 12, color: "#64748b" }}
+            >
+              <Box
+                sx={{ width: 10, height: 10, borderRadius: "50%", backgroundColor: item.color }}
+              />
+              {item.label}
+            </Box>
+          ))}
+
+          <Typography variant="caption" sx={{ color: "#94a3b8" }}>
+            Scroll sideways or use the arrows on the table edges
+          </Typography>
+        </Box>
+      </Box>
+
+      <Box
+        ref={tableWrapRef}
+        sx={{
+          position: "relative",
+          width: "100%",
+          height: "calc(100vh - 150px)",
+          minHeight: 560,
+          backgroundColor: "#fff",
+          borderRadius: 3,
+          overflow: "hidden",
+          border: "1px solid #e2e8f0",
+          boxShadow: "0 1px 3px rgba(15, 23, 42, 0.06)",
+          "&:hover .scroll-btn": { opacity: 0.95 },
+        }}
+      >
+        <IconButton
+          className="scroll-btn"
+          aria-label="Scroll table left"
+          onClick={() => scrollTable(-1)}
+          sx={{
+            position: "absolute",
+            left: 8,
+            top: "50%",
+            zIndex: 5,
+            opacity: 0,
+            transition: "opacity 0.2s",
+            backgroundColor: "#fff",
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 4px 12px rgba(15, 23, 42, 0.15)",
+            "&:hover": { backgroundColor: "#eff6ff" },
+          }}
+        >
+          <ChevronLeft size={20} />
+        </IconButton>
+
+        <IconButton
+          className="scroll-btn"
+          aria-label="Scroll table right"
+          onClick={() => scrollTable(1)}
+          sx={{
+            position: "absolute",
+            right: 8,
+            top: "50%",
+            zIndex: 5,
+            opacity: 0,
+            transition: "opacity 0.2s",
+            backgroundColor: "#fff",
+            border: "1px solid #e2e8f0",
+            boxShadow: "0 4px 12px rgba(15, 23, 42, 0.15)",
+            "&:hover": { backgroundColor: "#eff6ff" },
+          }}
+        >
+          <ChevronRight size={20} />
+        </IconButton>
+
         <DataGrid
           rows={filteredUsers}
           columns={columns}
@@ -2154,80 +2669,127 @@ export default function Customer() {
             pagination: {
               paginationModel: {
                 page: 0,
-                pageSize: 10,
+                pageSize: 25,
               },
             },
-
-            sorting: {
-              sortModel: [
-                {
-                  field: "signupDate",
-                  sort: "desc",
-                },
-              ],
-            },
           }}
+          sortModel={sortModel}
+          onSortModelChange={(model) => setSortModel(model)}
+          columnVisibilityModel={columnVisibility}
+          onColumnVisibilityModelChange={(model) => setColumnVisibility(model)}
           pageSizeOptions={[10, 25, 50, 100]}
           disableRowSelectionOnClick
           /* SP BADGE: only SP rows can be ticked */
           checkboxSelection
           isRowSelectable={(params) => isSP(params.row)}
           onRowSelectionModelChange={badge.setSelection}
-          autoHeight
           slots={{
-            toolbar: () => <CustomToolbar onExportAll={handleExportAll} onExportFiltered={handleExportFiltered} />,
+            toolbar: CustomToolbar,
+            noRowsOverlay: NoRowsOverlay,
+          }}
+          slotProps={{
+            toolbar: {
+              onExportAll: handleExportAll,
+              onExportFiltered: handleExportFiltered,
+              columnView,
+              onColumnViewChange: handleColumnViewChange,
+            },
+            noRowsOverlay: { onClear: handleClear },
           }}
           sx={{
             border: 0,
+            fontFamily: "inherit",
+
+            /* SCROLLBARS: bigger and easier to grab */
+
+            scrollbarColor: "#94a3b8 #f1f5f9",
+
+            "& .MuiDataGrid-virtualScroller::-webkit-scrollbar": {
+              height: 14,
+              width: 14,
+            },
+
+            "& .MuiDataGrid-virtualScroller::-webkit-scrollbar-track": {
+              background: "#f1f5f9",
+            },
+
+            "& .MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb": {
+              background: "#94a3b8",
+              borderRadius: 8,
+              border: "3px solid #f1f5f9",
+            },
+
+            "& .MuiDataGrid-virtualScroller::-webkit-scrollbar-thumb:hover": {
+              background: "#64748b",
+            },
+
+            /* COLOUR STRIP ON TOP OF EACH COLUMN GROUP */
+
+            "& .col-group-user": { boxShadow: "inset 0 3px 0 #2563eb" },
+            "& .col-group-badge": { boxShadow: "inset 0 3px 0 #d97706" },
+            "& .col-group-subscription": { boxShadow: "inset 0 3px 0 #059669" },
+            "& .col-group-business": { boxShadow: "inset 0 3px 0 #7c3aed" },
+            "& .col-group-address": { boxShadow: "inset 0 3px 0 #0ea5e9" },
 
             /* HEADER */
 
             "& .MuiDataGrid-columnHeaders": {
-              backgroundColor: "#f9fafb",
-              borderBottom: "1px solid #e5e7eb",
+              backgroundColor: "#f8fafc",
+              borderBottom: "1px solid #e2e8f0",
             },
 
             "& .MuiDataGrid-columnHeader": {
-              backgroundColor: "#f9fafb",
+              backgroundColor: "#f8fafc",
             },
 
             "& .MuiDataGrid-columnHeaderTitle": {
               fontWeight: 700,
-              fontSize: "12px",
-              color: "#6b7280",
+              fontSize: "11.5px",
+              color: "#475569",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            },
+
+            "& .MuiDataGrid-columnSeparator": {
+              display: "none",
             },
 
             /* CELLS */
 
             "& .MuiDataGrid-cell": {
-              borderBottom: "1px solid #f3f4f6",
+              borderBottom: "1px solid #f1f5f9",
               display: "flex",
               alignItems: "center",
               fontSize: "14px",
-              color: "#374151",
+              color: "#334155",
             },
 
-            /* ROW */
+            /* ROWS */
 
             "& .MuiDataGrid-row": {
               minHeight: "64px !important",
             },
 
+            "& .MuiDataGrid-row:nth-of-type(even)": {
+              backgroundColor: "#fcfcfd",
+            },
+
             "& .MuiDataGrid-row:hover": {
-              backgroundColor: "#f9fafb",
+              backgroundColor: "#eff6ff",
+            },
+
+            "& .MuiDataGrid-row.Mui-selected": {
+              backgroundColor: "#dbeafe",
+            },
+
+            "& .MuiDataGrid-row.Mui-selected:hover": {
+              backgroundColor: "#bfdbfe",
             },
 
             /* FOOTER */
 
             "& .MuiDataGrid-footerContainer": {
-              borderTop: "1px solid #e5e7eb",
-            },
-
-            /* TOOLBAR */
-
-            "& .MuiDataGrid-toolbarContainer": {
-              padding: "12px 16px",
-              gap: 1,
+              borderTop: "1px solid #e2e8f0",
             },
 
             /* REMOVE FOCUS OUTLINE */
@@ -2256,6 +2818,10 @@ export default function Customer() {
       =================================================== */}
 
       <SpBadgeDialogs badge={badge} />
+
+      {/* REPORT: subscribers, users, spread by state, store downloads */}
+
+      <UserReport open={reportOpen} onClose={() => setReportOpen(false)} users={allUsers} />
 
       {/* ===================================================
           USER DETAILS MODAL
@@ -2412,6 +2978,21 @@ export default function Customer() {
 
                 <Detail label="Business Address" value={selectedUser?.business?.business_address} />
 
+                <Detail label="Business Area" value={selectedUser?.business?.area} />
+
+                <Detail label="Business State" value={selectedUser?.business?.state} />
+
+                <Detail label="Business LGA" value={selectedUser?.business?.lga} />
+
+                <Detail label="Business Landmark" value={selectedUser?.business?.landmark} />
+
+                <Detail label="Association ID" value={selectedUser?.business?.association_id} />
+
+                <Detail
+                  label="State Residency ID"
+                  value={selectedUser?.business?.state_residency_id}
+                />
+
                 <Detail
                   label="Business Verified"
                   value={
@@ -2463,6 +3044,41 @@ export default function Customer() {
                         : "Expired"
                       : "N/A"
                   }
+                />
+
+                <Detail
+                  label="Package"
+                  value={selectedUser?.subscription ? selectedUser?.packageName : "N/A"}
+                />
+
+                <Detail
+                  label="Payment Status"
+                  value={selectedUser?.subscription ? selectedUser?.paymentStatus : "N/A"}
+                />
+
+                <Detail
+                  label="Transaction Reference"
+                  value={selectedUser?.subscription ? selectedUser?.transactionRef : "N/A"}
+                />
+
+                <Detail
+                  label="Promo Applied"
+                  value={selectedUser?.subscription ? selectedUser?.promoApplied : "N/A"}
+                />
+
+                <Detail
+                  label="Promo Type"
+                  value={selectedUser?.subscription ? selectedUser?.promoType : "N/A"}
+                />
+
+                <Detail
+                  label="Promo Amount"
+                  value={selectedUser?.subscription ? formatPromoAmount(selectedUser) : "N/A"}
+                />
+
+                <Detail
+                  label="Promo Description"
+                  value={selectedUser?.subscription ? selectedUser?.promoDescription : "N/A"}
                 />
 
                 {/* ADDRESS */}

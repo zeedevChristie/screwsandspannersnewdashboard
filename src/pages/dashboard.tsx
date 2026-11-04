@@ -5,6 +5,8 @@ import { DashboardWidget } from "@/types/dashboard";
 import Header from "./dashboard/header";
 import WidgetGrid from "./dashboard/widgets";
 import { useDashboardStatistics } from "@/hooks/useDashboardStatistics";
+import { useRevenue } from "@/hooks/useRevenue";
+import { formatNairaCompact } from "@/lib/revenue";
 import { Building2, Ticket, Truck, UserRound, Users, Wallet } from "lucide-react";
 
 export default function Dashboard() {
@@ -12,6 +14,9 @@ export default function Dashboard() {
   const bio = getAuthBio();
 
   const { data, isLoading, error } = useDashboardStatistics();
+
+  // Revenue: added up from the "amount paid" of every subscription
+  const { data: revenue, isLoading: revenueLoading } = useRevenue();
 
   const widgets = useMemo<DashboardWidget[]>(
     () => [
@@ -51,8 +56,10 @@ export default function Dashboard() {
       },
       {
         title: "Revenue",
-        value: "₦-",
-        subValue: "Lifetime Revenue • ₦-",
+        value: revenueLoading ? "..." : revenue ? formatNairaCompact(revenue.total) : "₦-",
+        subValue: revenue
+          ? `This month • ${formatNairaCompact(revenue.thisMonth)}`
+          : "This month • ₦-",
         theme: "green",
         icon: Wallet,
       },
@@ -64,13 +71,13 @@ export default function Dashboard() {
         icon: Ticket,
       },
     ],
-    [data]
+    [data, revenue, revenueLoading]
   );
 
   return (
-      <>
-        <Header bio={bio} isOpen={isOpen} setIsOpen={setIsOpen} />
-        <WidgetGrid widgets={widgets} isOpen={isOpen} />
+    <>
+      <Header bio={bio} isOpen={isOpen} setIsOpen={setIsOpen} />
+      <WidgetGrid widgets={widgets} isOpen={isOpen} />
     </>
-    );
+  );
 }

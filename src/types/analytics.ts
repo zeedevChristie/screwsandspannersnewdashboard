@@ -11,6 +11,14 @@ export interface Pagination {
     total_pages: number;
 }
 
+export interface SelectedSearchItem {
+    id: string | number;
+    firstname: string;
+    lastname: string;
+    rating: number | null;
+    business?: { business_name?: string | null } | null;
+}
+
 export interface SearchAnalytics {
     _id: string;
 

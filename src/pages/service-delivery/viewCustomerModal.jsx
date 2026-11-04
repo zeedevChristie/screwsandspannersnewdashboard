@@ -31,7 +31,8 @@ export default function ViewCustomerModal({ customer, onClose }) {
 
   const subscription = (customer.subscription && { ...customer.subscription }) ?? {
     package: customer.packageType ?? customer.package ?? '—',
-    amountPaid: customer.amountPaid ?? customer.amount ?? 0,
+    baseAmount: customer.baseAmount ?? customer.base_amount ?? customer.amount ?? 0,
+    amountPaid: customer.amountPaid ?? customer.amount_paid ?? customer.amount ?? 0,
     validityFrom: customer.validityFrom ?? null,
     validityTo: customer.validityTo ?? null,
     promoCode: customer.promoCode ?? '',

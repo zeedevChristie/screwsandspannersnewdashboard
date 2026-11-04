@@ -1,6 +1,7 @@
+import type { AxiosRequestConfig } from "axios";
 import { getToken } from "./auth";
 
-export const authMiddleware = (config = {}) => {
+export const authMiddleware = (config: AxiosRequestConfig = {}) => {
   const token = getToken();
 
   return {
