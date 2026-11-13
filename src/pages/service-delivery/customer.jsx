@@ -419,6 +419,8 @@ const getExpiryDate = (subscription) => {
   }
 
   return (
+    subscription?.valid_to ||
+    subscription?.validTo ||
     subscription?.expiryDate ||
     subscription?.expiry_date ||
     subscription?.expiresAt ||
@@ -439,24 +441,36 @@ const getExpiryDate = (subscription) => {
    EXPIRED
 ========================================================= */
 
-const getSubscriptionStatus = (subscription) => {
+const getSubscriptionStatus = (
+  subscription,
+  apiStatus = "",
+  expiryDate = getExpiryDate(subscription),
+) => {
   if (!subscription) {
     return "none";
   }
 
-  const expiryDate = getExpiryDate(subscription);
+  if (expiryDate) {
+    const dateOnlyMatch =
+      typeof expiryDate === "string" && expiryDate.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    const expiry = dateOnlyMatch
+      ? new Date(Number(dateOnlyMatch[1]), Number(dateOnlyMatch[2]) - 1, Number(dateOnlyMatch[3]))
+      : new Date(expiryDate);
 
-  if (!expiryDate) {
-    return Boolean(subscription?.isActive) ? "active" : "expired";
+    if (!Number.isNaN(expiry.getTime())) {
+      const expiryDay = new Date(expiry.getFullYear(), expiry.getMonth(), expiry.getDate());
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      return expiryDay.getTime() >= today.getTime() ? "active" : "expired";
+    }
   }
 
-  const expiry = new Date(expiryDate);
-
-  if (Number.isNaN(expiry.getTime())) {
-    return Boolean(subscription?.isActive) ? "active" : "expired";
+  if (apiStatus) {
+    return apiStatus === "ACTIVE" ? "active" : "expired";
   }
 
-  return expiry.getTime() >= Date.now() ? "active" : "expired";
+  return Boolean(subscription?.isActive) ? "active" : "expired";
 };
 
 /* =========================================================
@@ -746,8 +760,8 @@ const mapUserToRow = (user, index) => {
    * SUBSCRIPTION STATUS
    */
   /*
-   * Use the status the API sends (subscription_status: "ACTIVE" ...).
-   * Only when it is missing, work it out from the expiry date.
+   * Prefer validity dates over the API status, which may remain ACTIVE
+   * after the subscription validity has passed.
    */
   const apiSubscriptionStatus = String(
     subscription?.subscription_status ?? subscription?.subscriptionStatus ?? "",
@@ -755,13 +769,7 @@ const mapUserToRow = (user, index) => {
     .trim()
     .toUpperCase();
 
-  const subscriptionStatus = !subscription
-    ? "none"
-    : apiSubscriptionStatus
-      ? apiSubscriptionStatus === "ACTIVE"
-        ? "active"
-        : "expired"
-      : getSubscriptionStatus(subscription);
+  const subscriptionStatus = getSubscriptionStatus(subscription, apiSubscriptionStatus);
 
   return {
     ...user,
@@ -1877,6 +1885,24 @@ export default function Customer() {
         renderCell: (params) => formatDate(params?.value),
       },
 
+      {
+        field: "signupTime",
+        headerName: "Signup Time",
+        width: 135,
+        sortable: true,
+        filterable: true,
+        valueGetter: (value, row) => {
+          const rawDate = row?.signupDate;
+          if (!rawDate) return null;
+          const date = new Date(rawDate);
+          return Number.isNaN(date.getTime()) ? null : date;
+        },
+        renderCell: (params) =>
+          params?.value
+            ? params.value.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })
+            : "N/A",
+      },
+
       /* ===================================================
          PHONE
       =================================================== */
@@ -2201,7 +2227,19 @@ export default function Customer() {
             );
           }
 
-          const active = params?.value === "active";
+          const apiStatus = String(
+            params.row.subscription?.subscription_status ??
+              params.row.subscription?.subscriptionStatus ??
+              "",
+          )
+            .trim()
+            .toUpperCase();
+          const status = getSubscriptionStatus(
+            params.row.subscription,
+            apiStatus,
+            params.row.validTo,
+          );
+          const active = status === "active";
 
           return (
             <Chip
@@ -2736,10 +2774,12 @@ export default function Customer() {
             "& .MuiDataGrid-columnHeaders": {
               backgroundColor: "#f8fafc",
               borderBottom: "1px solid #e2e8f0",
+              borderRight: "1px solid #e2e8f0",
             },
 
             "& .MuiDataGrid-columnHeader": {
               backgroundColor: "#f8fafc",
+              borderRight: "1px solid #e2e8f0",
             },
 
             "& .MuiDataGrid-columnHeaderTitle": {
@@ -2751,13 +2791,15 @@ export default function Customer() {
             },
 
             "& .MuiDataGrid-columnSeparator": {
-              display: "none",
+              color: "#cbd5e1",
+              visibility: "visible",
             },
 
             /* CELLS */
 
             "& .MuiDataGrid-cell": {
-              borderBottom: "1px solid #f1f5f9",
+              borderBottom: "1px solid #e2e8f0",
+              borderRight: "1px solid #e2e8f0",
               display: "flex",
               alignItems: "center",
               fontSize: "14px",
